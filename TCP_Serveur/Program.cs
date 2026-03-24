@@ -48,7 +48,7 @@ async Task HandleClientAsync(Socket handler)
             if (received == 0) break;
 
             string message = Encoding.UTF8.GetString(buffer, 0, received);
-            Console.WriteLine($"Message reçu : \"{message.Replace(eom, "")}\"");
+            Console.WriteLine($"Message reçu : {message.Replace(eom, "")}");
 
             // Vérifier fin de message
             if (message.Contains(eom))
