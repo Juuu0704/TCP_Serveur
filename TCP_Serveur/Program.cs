@@ -50,15 +50,12 @@ async Task HandleClientAsync(Socket handler)
             string message = Encoding.UTF8.GetString(buffer, 0, received);
             Console.WriteLine($"Message reçu : {message.Replace(eom, "")}");
 
-            // Vérifier fin de message
-            if (message.Contains(eom))
-            {
-                // Envoi de l'accusé de réception
-                string ackMessage = "<|ACK|>";
-                byte[] ackBytes = Encoding.UTF8.GetBytes(ackMessage);
-                await handler.SendAsync(ackBytes, 0);
-                Console.WriteLine($"ACK envoyé : \"{ackMessage}\"");
-            }
+            // Envoi de l'accusé de réception
+            string ackMessage = "Résultat reçu";
+            byte[] ackBytes = Encoding.UTF8.GetBytes(ackMessage);
+            await handler.SendAsync(ackBytes, 0);
+            Console.WriteLine($"Accusé de réception envoyé au client !");
+            
         }
     }
     catch (Exception ex)
