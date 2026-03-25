@@ -13,7 +13,7 @@ using Socket listener = new Socket(
 
 // Bind + écoute
 listener.Bind(ipEndPoint);
-listener.Listen(10); // 10 connexions en attente max
+listener.Listen(2); // 2 connexions en attente max
 
 Console.WriteLine($"Serveur TCP démarré sur le port 1234...");
 
@@ -54,7 +54,7 @@ async Task HandleClientAsync(Socket handler)
             string ackMessage = "Résultat reçu";
             byte[] ackBytes = Encoding.UTF8.GetBytes(ackMessage);
             await handler.SendAsync(ackBytes, 0);
-            Console.WriteLine($"Accusé de réception envoyé au client !");
+            Console.WriteLine($"Accusé de réception envoyé au client !\n");
             
         }
     }
