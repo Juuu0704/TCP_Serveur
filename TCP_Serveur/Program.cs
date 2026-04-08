@@ -3,19 +3,11 @@ using System.Net.Sockets;
 using System.Text;
 using System.IO;
 
-public class TcpServer
+class Program
 {
-    // Sert à éviter que plusieurs threads écrivent dans le log en même temps
-    private readonly object _lock = new();
+    static readonly object _lock = new();
 
-    //Socket principal du serveur (écoute des connexions)
-    private Socket? listener;
-
-    //Indique si le serveur est en cours de fonctionnement
-    private bool isRunning;
-
-    //Fonction de log (écrit dans un fichier texte)
-    public void Log(string message)
+    static void Log(string message)
     {
         lock (_lock)
         {
@@ -24,128 +16,90 @@ public class TcpServer
         }
     }
 
-    //Démarrage du serveur
-    public async Task StartAsync(int port)
+    static async Task Main()
     {
-        // Évite de démarrer 2 fois
-        if (isRunning) return;
+        int port = 1234;
 
-        isRunning = true;
+        bool isRunning = true;
 
-        //Configure l'adresse IP + port
+        // Configuration
         IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Any, port);
 
-        //Création du socket serveur
-        listener = new Socket(
+        // Création du socket serveur
+        using Socket listener = new Socket(
             ipEndPoint.AddressFamily,
             SocketType.Stream,
             ProtocolType.Tcp);
 
-        //Associe le socket à l'adresse
-        listener.Bind(ipEndPoint);
-
-        //Mise en écoute (2 connexions max en attente)
-        listener.Listen(2);
-
-        Log($"Serveur démarré sur le port {port}");
-
-        //Lance la boucle d'acceptation en tâche de fond (non bloquante)
-        _ = AcceptLoop(); 
-    }
-
-    //Arrêt du serveur
-    public void Stop()
-    {
-        // Si déjà arrêté → ne rien faire
-        if (!isRunning) return;
-
-        isRunning = false;
-
-        Log("Arrêt du serveur...");
-
-        try 
+        AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
-            //Ferme le socket → débloque AcceptAsync()
-            listener?.Close(); 
-        } 
-        catch { }
+            Log($"FATAL: {e.ExceptionObject}");
+        };
 
-        Log("Serveur arrêté");
-    }
+        TaskScheduler.UnobservedTaskException += (s, e) =>
+        {
+            Log($"TASK ERROR: {e.Exception}");
+            e.SetObserved();
+        };
 
-    //Boucle principale : accepte les clients
-    private async Task AcceptLoop()
-    {
+        // Bind + écoute
+        listener.Bind(ipEndPoint);
+        listener.Listen(2); // 2 connexions en attente max
+
+
+        // Boucle d'acceptation des clients
         while (isRunning)
         {
+            Socket handler = await listener.AcceptAsync();
+
+            Log($"Client connecté : {handler.RemoteEndPoint}");
+
+            // Gestion du client dans une tâche séparée
+            _ = HandleClientAsync(handler);
+        }
+
+        // Fonction de gestion d'un client
+        async Task HandleClientAsync(Socket handler)
+        {
+            byte[] buffer = new byte[1024];
+            //string eom = "<|EOM|>";
+
             try
             {
-                // Attend qu’un client se connecte
-                Socket handler = await listener!.AcceptAsync();
+                while (true)
+                {
+                    // Réception du message
+                    int received = await handler.ReceiveAsync(
+                        new ArraySegment<byte>(buffer),
+                        SocketFlags.None);
 
-                Log($"Client connecté : {handler.RemoteEndPoint}");
 
-                //Lance la gestion du client dans une tâche séparée
-                _ = HandleClientAsync(handler);
+                    // Client déconnecté
+                    if (received == 0) break;
+
+                    string message = Encoding.UTF8.GetString(buffer, 0, received);
+                    Log($"Message reçu : {message}");
+
+
+                    // Envoi de l'accusé de réception
+                    string ackMessage = "Résultat reçu";
+                    byte[] ackBytes = Encoding.UTF8.GetBytes(ackMessage);
+                    await handler.SendAsync(new ArraySegment<byte>(ackBytes), SocketFlags.None);
+
+                }
             }
-            catch (ObjectDisposedException)
-            {
-                // serveur arrêté → normal
-                break;
-            }
+
             catch (Exception ex)
             {
-                Log($"Erreur serveur : {ex}");
+                Log($"Erreur client : {ex}");
             }
-        }
-    }
 
-    //Gestion d’un client
-    private async Task HandleClientAsync(Socket handler)
-    {
-        byte[] buffer = new byte[1024];
-
-        try
-        {
-            while (isRunning)
+            finally
             {
-                //Réception des données
-                int received = await handler.ReceiveAsync(buffer, SocketFlags.None);
-
-                //Si 0 → client déconnecté
-                if (received == 0)
-                    break;
-
-                //Conversion des bytes en texte
-                string message = Encoding.UTF8.GetString(buffer, 0, received);
-
-                Log($"Message reçu : {message}");
-
-                //Réponse au client
-                string response = "Résultat reçu";
-                byte[] data = Encoding.UTF8.GetBytes(response);
-
-                await handler.SendAsync(data, SocketFlags.None);
+                Log("Client déconnecté");
+                handler.Shutdown(SocketShutdown.Both);
+                handler.Close();
             }
-        }
-        catch (Exception ex)
-        {
-            Log($"Erreur client : {ex}");
-        }
-        finally
-        {
-            //Nettoyage de la connexion client
-            Log("Client déconnecté");
-
-            try 
-            {
-                // Coupe envoi + réception
-                handler.Shutdown(SocketShutdown.Both); 
-            } 
-            catch { }
-
-            // Ferme le socket
-            handler.Close();
         }
     }
 }
