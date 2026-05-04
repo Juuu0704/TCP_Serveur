@@ -6,9 +6,4 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
-  <Target Name="KillBeforeBuild" BeforeTargets="Build">
-    <Exec Command="taskkill /f /im TCP_Serveur.exe" IgnoreExitCode="true" />
-  </Target>
-
 </Project>

@@ -10,6 +10,7 @@ class Program
     static readonly object _lock = new();
     static Socket? listener;
     static bool isRunning;
+    static Mutex? _mutex;
 
     static void Log(string message)
     {
@@ -105,12 +106,26 @@ class Program
 
         try { listener?.Close(); } catch { }
 
+        _mutex?.ReleaseMutex();
+        _mutex?.Dispose();
+
         Log("Serveur arrêté");
     }
 
     [STAThread]
     static void Main()
     {
+
+        _mutex = new Mutex(true, "Global\\TCP_serveur", out bool estLeCreateur);
+
+        if (!estLeCreateur)
+        {
+            Log("Tentative de double lancement bloqué.");
+            _mutex.Dispose();
+            return;
+        }
+
+
         // Arrêt propre quand Windows ferme l'application
         AppDomain.CurrentDomain.ProcessExit += (s, e) => Stop();
 
@@ -132,7 +147,7 @@ class Program
 
     static async Task StartServerAsync()
     {
-        int port = 1234;
+        int port = 12345;
         isRunning = true;
 
         IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Any, port);
@@ -175,6 +190,9 @@ class Program
                 if (received == 0) break;
 
                 string message = Encoding.UTF8.GetString(buffer, 0, received);
+
+
+/************************************************************************************   Ajouter vérification ISBN avec BDD    *******************************************************************************************************************/
 
                 if (VerifyCard(message, secretKey))
                 {
