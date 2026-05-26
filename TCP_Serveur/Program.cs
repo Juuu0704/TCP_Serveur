@@ -4,6 +4,7 @@ using System.Text;
 using System.IO;
 using System;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 class Program
 {
@@ -167,6 +168,10 @@ class Program
             try
             {
                 Socket handler = await listener.AcceptAsync();
+
+                byte[] ackBytes = Encoding.UTF8.GetBytes("Client connecté !");
+                await handler.SendAsync(new ArraySegment<byte>(ackBytes), SocketFlags.None);
+
                 Log($"Client connecté : {handler.RemoteEndPoint}");
                 _ = HandleClientAsync(handler);
             }
@@ -191,16 +196,25 @@ class Program
 
                 string message = Encoding.UTF8.GetString(buffer, 0, received);
 
+                bool resultat = message.StartsWith("97");
 
-/************************************************************************************   Ajouter vérification ISBN avec BDD    *******************************************************************************************************************/
-
-                if (VerifyCard(message, secretKey))
+                if (resultat == true)
                 {
-                    Log($"QR Code valide. Message reçu : {message}");
+                    Log($"ISBN valide. Message reçu : {message}");
                 }
-                else { 
-                    Log($"Erreur : QR Code non valide !");
+                else 
+                {
+                    if (VerifyCard(message, secretKey))
+                    {
+                        Log($"QR Code valide. Message reçu : {message}");
+                    }
+                    else
+                    {
+                        Log($"Erreur : Résultat de scan non valide !");
+                    }
                 }
+
+                
 
                 byte[] ackBytes = Encoding.UTF8.GetBytes("Résultat reçu");
                 await handler.SendAsync(new ArraySegment<byte>(ackBytes), SocketFlags.None);
